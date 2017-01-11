@@ -9,7 +9,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from matplotlib import pyplot as plt
 from skimage.feature import hog
-from skimage import data, color, exposure
+from skimage import data, color, exposure, draw
 
 
 DATA_DIR = os.path.join(os.path.expanduser('~'), 'mnist')
@@ -82,6 +82,39 @@ def take_sample(X, y, sample_size):
     return X[sample,:], y[sample]
 
 
+def visualize_coef_officially(coef, num_orientations, ppc):
+    cx, cy = ppc
+    sy, sx = (28, 28)
+    n_cellsx = int(np.floor(sx // cx)) # number of cells in x
+    n_cellsy = int(np.floor(sy // cy)) # number of cells in y
+    radius = min(cx, cy) // 2 - 1
+    orientations_arr = np.arange(num_orientations)
+    dx_arr = radius * np.cos(orientations_arr / num_orientations * np.pi)
+    dy_arr = radius * np.sin(orientations_arr / num_orientations * np.pi)
+    fig, axes = plt.subplots(4, 3, figsize=(8, 4), sharex=True, sharey=True)
+
+    vmax = abs(coef).max()
+    vmin = -vmax
+
+    for i, ax in enumerate(np.ravel(axes)[:10]):
+        hog_vector = reshape_hog_vector(coef[i,:], num_orientations, ppc)
+        hog_image = np.zeros((sy, sx), dtype=float)
+        for x in range(n_cellsx):
+            for y in range(n_cellsy):
+                for o, dx, dy in zip(orientations_arr, dx_arr, dy_arr):
+                    centre = tuple([y * cy + cy // 2, x * cx + cx // 2])
+                    rr, cc = draw.line(int(centre[0] - dx),
+                                       int(centre[1] + dy),
+                                       int(centre[0] + dx),
+                                       int(centre[1] - dy))
+                    hog_image[rr, cc] += hog_vector[y, x, o]
+        ax.set_title('Digit {0}'.format(i))
+        ax.imshow(hog_image, cmap=plt.cm.gray, interpolation='none', vmin=vmin, vmax=vmax)
+
+    plt.show()
+    plt.close()
+
+
 def visualize_coef(coef, num_orientations, ppc):
     reshaped = reshape_hog_vector(coef, num_orientations, ppc)
     dim = math.ceil(num_orientations / num_orientations**.5)
@@ -136,7 +169,9 @@ if '__name__' == 'main':
     y = bunch.target
     X_sample, y_sample = take_sample(X, y, 10000)
     num_orientations = 4
-    ppc = (3, 3)
+    ppc = (7, 7)
     random_state = 0
     C = .05
     model, score = train_single_hog(X_sample, y_sample, num_orientations, ppc, random_state, C)
+    print('score is {0}'.format(score))
+    visualize_coef_officially(model.coef_, num_orientations, ppc)
