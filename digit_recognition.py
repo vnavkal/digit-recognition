@@ -44,7 +44,7 @@ def train_linear():
 def train_all_hogs(sample_size=10000, random_state=0):
     models = {}
     scores = {}
-    X_sample, y_sample = take_sample(X, y, sample_size=sample_size)
+    X_sample, y_sample = take_sample(X, y, sample_size=sample_size, digits=None)
 
     for C in np.logspace(-1, 0, 3):
         for num_orientations in (8,):#range(4, 14, 2):
@@ -77,12 +77,23 @@ def train_single_hog(X_sample, y_sample, num_orientations, ppc, random_state, C)
     return model, score
 
 
-def take_sample(X, y, sample_size):
-    sample = np.random.randint(0, len(X), sample_size)
-    return X[sample,:], y[sample]
+def take_sample(X, y, sample_size, digits):
+    if digits is not None:
+        digit_indicators = np.in1d(y, digits)
+        X = X[digit_indicators,:]
+        y = y[digit_indicators]
+    if sample_size is not None:
+        sample = np.random.randint(0, len(X), sample_size)
+        X = X[sample,:]
+        y = y[sample]
+    return X, y
 
 
-def visualize_coef_officially(coef, num_orientations, ppc):
+def visualize_coef_officially(coef, num_orientations, ppc, digits):
+    if len(digits) == 2:
+        digits = [digits[0]]
+    elif digits is None:
+        digits = range(10)
     cx, cy = ppc
     sy, sx = (28, 28)
     n_cellsx = int(np.floor(sx // cx)) # number of cells in x
@@ -96,7 +107,7 @@ def visualize_coef_officially(coef, num_orientations, ppc):
     vmax = abs(coef).max()
     vmin = -vmax
 
-    for i, ax in enumerate(np.ravel(axes)[:10]):
+    for i, (digit, ax) in enumerate(zip(digits, np.ravel(axes))):
         hog_vector = reshape_hog_vector(coef[i,:], num_orientations, ppc)
         hog_image = np.zeros((sy, sx), dtype=float)
         for x in range(n_cellsx):
@@ -108,7 +119,7 @@ def visualize_coef_officially(coef, num_orientations, ppc):
                                        int(centre[0] + dx),
                                        int(centre[1] - dy))
                     hog_image[rr, cc] += hog_vector[y, x, o]
-        ax.set_title('Digit {0}'.format(i))
+        ax.set_title('Digit {0}'.format(digit))
         ax.imshow(hog_image, cmap=plt.cm.gray, interpolation='none', vmin=vmin, vmax=vmax)
 
     plt.show()
@@ -167,11 +178,12 @@ if '__name__' == 'main':
     bunch = fetch_data()
     X = bunch.data
     y = bunch.target
-    X_sample, y_sample = take_sample(X, y, 10000)
-    num_orientations = 4
-    ppc = (7, 7)
+    digits = [0, 1]
+    X_sample, y_sample = take_sample(X, y, sample_size=None, digits=digits)
+    num_orientations = 1
+    ppc = (4, 4)
     random_state = 0
-    C = .05
+    C = .1
     model, score = train_single_hog(X_sample, y_sample, num_orientations, ppc, random_state, C)
     print('score is {0}'.format(score))
-    visualize_coef_officially(model.coef_, num_orientations, ppc)
+    visualize_coef_officially(model.coef_, num_orientations, ppc, digits)
