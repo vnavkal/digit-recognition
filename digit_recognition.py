@@ -89,11 +89,36 @@ def take_sample(X, y, sample_size, digits):
     return X, y
 
 
-def visualize_coef_officially(coef, num_orientations, ppc, digits):
-    if len(digits) == 2:
-        digits = [digits[0]]
-    elif digits is None:
+def visualize_all_coef(coef, num_orientations, ppc, digits, ignore_direction):
+    if digits is None:
         digits = range(10)
+    elif len(digits) == 2:
+        digits = [digits[0]]
+
+    width = 3
+    height = (len(digits) + width - 1) // width
+    fig, axes = plt.subplots(height, width, figsize=(8, 4), sharex=True, sharey=True)
+
+    intensity_scale = abs(coef).max()
+
+    for i, (digit, ax) in enumerate(zip(digits, np.ravel(axes))):
+        title = 'Digit {0}'.format(digit)
+        _plot_coef(coef[i,:], ax, title, num_orientations, ppc, intensity_scale, ignore_direction)
+
+    plt.show()
+    plt.close()
+
+
+def visualize_single_coef(coef, num_orientations, ppc, title, ignore_direction):
+    ax = plt.gca()
+    intensity_scale = abs(coef).max()
+    _plot_coef(coef, ax, title, num_orientations, ppc, intensity_scale, ignore_direction)
+
+    plt.show()
+    plt.close()
+
+
+def _plot_coef(coef, ax, title, num_orientations, ppc, intensity_scale, ignore_direction):
     cx, cy = ppc
     sy, sx = (28, 28)
     n_cellsx = int(np.floor(sx // cx)) # number of cells in x
@@ -102,53 +127,23 @@ def visualize_coef_officially(coef, num_orientations, ppc, digits):
     orientations_arr = np.arange(num_orientations)
     dx_arr = radius * np.cos(orientations_arr / num_orientations * np.pi)
     dy_arr = radius * np.sin(orientations_arr / num_orientations * np.pi)
-    fig, axes = plt.subplots(4, 3, figsize=(8, 4), sharex=True, sharey=True)
 
-    vmax = abs(coef).max()
-    vmin = -vmax
-
-    for i, (digit, ax) in enumerate(zip(digits, np.ravel(axes))):
-        hog_vector = reshape_hog_vector(coef[i,:], num_orientations, ppc)
-        hog_image = np.zeros((sy, sx), dtype=float)
-        for x in range(n_cellsx):
-            for y in range(n_cellsy):
-                for o, dx, dy in zip(orientations_arr, dx_arr, dy_arr):
-                    centre = tuple([y * cy + cy // 2, x * cx + cx // 2])
-                    rr, cc = draw.line(int(centre[0] - dx),
-                                       int(centre[1] + dy),
-                                       int(centre[0] + dx),
-                                       int(centre[1] - dy))
+    hog_vector = reshape_hog_vector(coef, num_orientations, ppc)
+    hog_image = np.zeros((sy, sx), dtype=float)
+    for x in range(n_cellsx):
+        for y in range(n_cellsy):
+            for o, dx, dy in zip(orientations_arr, dx_arr, dy_arr):
+                center = tuple([y * cy + cy // 2, x * cx + cx // 2])
+                if ignore_direction:
+                    hog_image[center] += abs(hog_vector[y, x, o])
+                else:
+                    rr, cc = draw.line(int(center[0] - dx),
+                                       int(center[1] + dy),
+                                       int(center[0] + dx),
+                                       int(center[1] - dy))
                     hog_image[rr, cc] += hog_vector[y, x, o]
-        ax.set_title('Digit {0}'.format(digit))
-        ax.imshow(hog_image, cmap=plt.cm.gray, interpolation='none', vmin=vmin, vmax=vmax)
-
-    plt.show()
-    plt.close()
-
-
-def visualize_coef(coef, num_orientations, ppc):
-    reshaped = reshape_hog_vector(coef, num_orientations, ppc)
-    dim = math.ceil(num_orientations / num_orientations**.5)
-    fig, axes = plt.subplots(nrows=dim, ncols=dim, figsize=(6, 6))
-    for x in range(dim):
-        for y in range(dim):
-            if x * dim + y < num_orientations:
-                axes[x, y].imshow(reshaped[:, :, x * dim + y], cmap='gray')
-    # normalized = 256 * reshaped / reshaped.max()
-    # plt.imshow(reshaped[0,:,:], cmap='gray')
-    plt.show()
-    plt.close()
-
-
-def aggregate_coef(all_coef, num_orientations, ppc):
-    final = {}
-    for digit in range(10):
-        coef = all_coef[digit,:]
-        reshaped = reshape_hog_vector(coef, num_orientations, ppc)
-        final[digit] = {
-            orientation: np.abs(reshaped[:,:, orientation]).mean() for orientation in range(num_orientations)
-        }
-    return pd.DataFrame(final)
+    ax.set_title(title)
+    ax.imshow(hog_image, cmap=plt.cm.gray, interpolation='none', vmin=-intensity_scale, vmax=intensity_scale)
 
 
 def reshape_image_vector(v):
@@ -178,12 +173,13 @@ if '__name__' == 'main':
     bunch = fetch_data()
     X = bunch.data
     y = bunch.target
+    sample_size = None
     digits = [0, 1]
-    X_sample, y_sample = take_sample(X, y, sample_size=None, digits=digits)
-    num_orientations = 1
+    X_sample, y_sample = take_sample(X, y, sample_size=sample_size, digits=digits)
+    num_orientations = 2
     ppc = (4, 4)
     random_state = 0
-    C = .1
+    C = .05
     model, score = train_single_hog(X_sample, y_sample, num_orientations, ppc, random_state, C)
     print('score is {0}'.format(score))
-    visualize_coef_officially(model.coef_, num_orientations, ppc, digits)
+    visualize_all_coef(model.coef_, num_orientations, ppc, digits, ignore_direction=False)
