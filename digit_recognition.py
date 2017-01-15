@@ -156,7 +156,11 @@ def reshape_hog_vector(hog_vector, num_orientations, ppc):
 
 def plot_vector(v):
     reshaped = reshape_image_vector(v)
-    plt.imshow(reshaped, cmap='gray')
+    _plot_image(reshaped)
+
+
+def _plot_image(image):
+    plt.imshow(image, cmap=plt.cm.gray, interpolation='none')
     plt.show()
 
 
@@ -167,6 +171,50 @@ def get_hog(image, num_orientations, pixels_per_cell, feature_vector=True):
                cells_per_block=(1, 1),
                visualise=False,
                feature_vector=feature_vector)
+
+
+def compare_image_to_hog(i):
+    digit = 1
+    x = take_sample(X, y, None, [1])[0][i,:]
+    image = reshape_image_vector(x)
+    _, hog_image = hog(
+        image,
+        orientations=10,
+        pixels_per_cell=(14, 14),
+        cells_per_block=(1, 1),
+        visualise=True
+    )
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), sharex=True, sharey=True)
+    ax1.imshow(hog_image, cmap=plt.cm.gray, interpolation='none')
+    ax2.imshow(image, cmap=plt.cm.gray)
+    plt.show()
+    plt.close()
+
+
+def _gradient_image(radians, dim):
+    a = np.fromfunction(lambda x, y: x * np.cos(radians) + y * np.sin(radians), (dim, dim))
+    return a / a.max()
+
+
+def compare_gradient_image_to_hog(radian_choices, num_orientations):
+    dim = 256
+    fig, axes = plt.subplots(len(radian_choices), 2, figsize=(6, 3 * len(radian_choices)), sharex=True, sharey=True)
+
+    for radians, (ax1, ax2) in zip(radian_choices, axes):
+        image = _gradient_image(radians, dim)
+        hog_values, hog_image = hog(
+            image,
+            orientations=num_orientations,
+            pixels_per_cell=(dim, dim),
+            cells_per_block=(1, 1),
+            visualise=True
+        )
+        print('hog values for displacement {0} are {1}'.format(radians / (2 * np.pi), hog_values))
+        ax1.imshow(image, cmap=plt.cm.gray)
+        ax1.set_title('{0} radians'.format(round(radians, 2)))
+        ax2.imshow(hog_image, cmap=plt.cm.gray, interpolation='none')
+    plt.show()
+    plt.close()
 
 
 if '__name__' == 'main':
